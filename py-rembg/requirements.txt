@@ -1,0 +1,20 @@
+rembg
+onnxruntime
+opencv-python-headless
+    numpy
+    pillow
+    scipy
+    scikit-image
+    pymatting
+    pooch
+    tqdm
+    aiohttp
+    asyncer
+    click
+    filetype
+    watchdog
+    fastapi
+    uvicorn
+    python-multipart
+    gradio
+    jsonschema
