@@ -14,7 +14,7 @@ class RemoveBgController extends Controller
 
         $image = $request->file('image');
 
-        // Папка для временных файлов
+        // Папка для временных файлов (storage/app/tmp)
         $tmpDir = storage_path('app/tmp');
         if (!file_exists($tmpDir)) {
             mkdir($tmpDir, 0777, true);
@@ -26,11 +26,19 @@ class RemoveBgController extends Controller
         // Сохраняем входной файл
         $image->move($tmpDir, basename($inputPath));
 
-        // Полный путь к rembg.exe
-        $rembg = 'D:\\OSPanel\\home\\RemLogo\\py-rembg\\python310\\Scripts\\rembg.exe';
+        // Путь к rembg.exe в виртуальном окружении проекта
+        $rembg = base_path('py-rembg/.venv/Scripts/rembg.exe');
 
-        // Команда rembg
-        $cmd = "\"$rembg\" i -m bria-rmbg \"$inputPath\" \"$outputPath\"";
+        if (!file_exists($rembg)) {
+            return response()->json(['error' => 'rembg.exe not found. Check py-rembg/.venv setup.'], 500);
+        }
+
+        // Команда rembg (модель Bria)
+        $cmd = escapeshellarg($rembg)
+            . ' i -m bria-rmbg '
+            . escapeshellarg($inputPath) . ' '
+            . escapeshellarg($outputPath);
+
         exec($cmd, $output, $returnVar);
 
         if (!file_exists($outputPath)) {
@@ -46,7 +54,6 @@ class RemoveBgController extends Controller
             return response()->json(['error' => 'No image or points'], 400);
         }
 
-        // points приходит как JSON-строка → декодируем
         $pointsRaw = $request->input('points');
         $points = json_decode($pointsRaw, true);
 
@@ -64,8 +71,13 @@ class RemoveBgController extends Controller
 
         $request->file('image')->move($tmpDir, basename($inputPath));
 
-        $python = 'D:\\OSPanel\\home\\RemLogo\\py-rembg\\python310\\python.exe';
-        $script = 'D:\\OSPanel\\home\\RemLogo\\py-rembg\\python310\\warp_logo.py';
+        // Локальный Python и скрипт выпрямления относительно корня проекта
+        $python = base_path('py-rembg/.venv/Scripts/python.exe');
+        $script = base_path('py-rembg/warp_logo.py');
+
+        if (!file_exists($python) || !file_exists($script)) {
+            return response()->json(['error' => 'python.exe or warp_logo.py not found in py-rembg'], 500);
+        }
 
         // Распаковываем 4 точки
         [$x1, $y1] = $points[0];
@@ -73,7 +85,6 @@ class RemoveBgController extends Controller
         [$x3, $y3] = $points[2];
         [$x4, $y4] = $points[3];
 
-        // На всякий случай приводим к float / строке
         $coords = [
             (float)$x1, (float)$y1,
             (float)$x2, (float)$y2,
@@ -81,7 +92,13 @@ class RemoveBgController extends Controller
             (float)$x4, (float)$y4,
         ];
 
-        $cmd = "\"$python\" \"$script\" \"$inputPath\" \"$outputPath\" " . implode(' ', $coords);
+        // Собираем команду:
+        // python warp_logo.py input.png output.png x1 y1 x2 y2 x3 y3 x4 y4
+        $cmd = escapeshellarg($python) . ' '
+            . escapeshellarg($script) . ' '
+            . escapeshellarg($inputPath) . ' '
+            . escapeshellarg($outputPath) . ' '
+            . implode(' ', array_map('escapeshellarg', $coords));
 
         exec($cmd, $out, $ret);
 
